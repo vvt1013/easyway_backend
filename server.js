@@ -1,93 +1,79 @@
-const express = require("express");
-const cors = require("cors");
+const express = require('express');
+const cors = require('cors');
+const fs = require('fs');
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-let shipments = {};
+const PORT = process.env.PORT || 3000;
 
-// =======================
-// CREATE SHIPMENT
-// =======================
-app.post('/admin/create-shipment', (req, res) => {
-  const { origin, destination, sender, receiver } = req.body;
+// File to store shipments
+const DATA_FILE = 'data.json';
 
-  const id = Math.random().toString(36).substring(2, 10).toUpperCase();
+// Ensure data file exists
+if (!fs.existsSync(DATA_FILE)) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify([]));
+}
 
-  shipments[id] = {
-    sender,
-    receiver,
-    origin,
-    destination,
-    history: [
-      {
-        status: "Shipment created",
-        location: origin || "Lagos",
-        date: new Date().toISOString().split("T")[0]
-      }
-    ],
-    currentLocation: origin || "Lagos"
+// Read data
+function readData() {
+  return JSON.parse(fs.readFileSync(DATA_FILE));
+}
+
+// Write data
+function writeData(data) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+}
+
+// Generate tracking number
+function generateTracking() {
+  return 'TRK' + Math.floor(100000 + Math.random() * 900000);
+}
+
+// ✅ Create shipment
+app.post('/create-shipment', (req, res) => {
+  const data = readData();
+
+  const newShipment = {
+    trackingNumber: generateTracking(),
+    sender: req.body.sender,
+    receiver: req.body.receiver,
+    status: "Processing",
+    location: "Warehouse",
+    date: new Date().toLocaleString()
   };
 
-  res.json({ trackingId: id });
-});
-
-// =======================
-// UPDATE SHIPMENT
-// =======================
-app.post('/admin/update-shipment', (req, res) => {
-  const { id, status, location } = req.body;
-
-  const shipment = shipments[id?.toUpperCase()];
-
-  if (!shipment) {
-    return res.status(404).json({ error: "Shipment not found" });
-  }
-
-  const update = {
-    status: status || "In transit",
-    location: location || "Unknown",
-    date: new Date().toISOString().split("T")[0]
-  };
-
-  shipment.history.push(update);
-  shipment.currentLocation = update.location;
-
-  res.json({ success: true, message: "Shipment updated" });
-});
-
-// =======================
-// TRACK SHIPMENT
-// =======================
-app.get('/track/:id', (req, res) => {
-  const id = req.params.id.toUpperCase();
-
-  const shipment = shipments[id];
-
-  if (!shipment) {
-    return res.json({
-      success: false,
-      message: "Tracking number not found"
-    });
-  }
+  data.push(newShipment);
+  writeData(data);
 
   res.json({
-    success: true,
-    trackingId: id,
-    origin: shipment.origin,
-    destination: shipment.destination,
-    currentLocation: shipment.currentLocation,
-    history: shipment.history
+    message: "Shipment created",
+    trackingNumber: newShipment.trackingNumber
   });
 });
 
-// =======================
-// START SERVER
-// =======================
-const PORT = process.env.PORT || 3000;
+// ✅ Track shipment
+app.get('/track/:trackingNumber', (req, res) => {
+  const data = readData();
 
+  const shipment = data.find(
+    item => item.trackingNumber === req.params.trackingNumber
+  );
+
+  if (!shipment) {
+    return res.status(404).json({ message: "Tracking number not found" });
+  }
+
+  res.json(shipment);
+});
+
+// ✅ Home route (important for Render)
+app.get('/', (req, res) => {
+  res.send("Backend is running 🚀");
+});
+
+// Start server
 app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+  console.log(`Server running on port ${PORT}`);
 });
