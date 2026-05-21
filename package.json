@@ -1,7 +1,6 @@
 {
   "name": "easyway-backend",
   "version": "1.0.0",
-  "description": "EasyWay Courier Backend API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
