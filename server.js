@@ -8,31 +8,43 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// ================= SHIPMENT SYSTEM =================
-
+// ================= FILES =================
 const DATA_FILE = 'data.json';
+const USERS_FILE = 'users.json';
 
-// Ensure data file exists
+// Ensure files exist
 if (!fs.existsSync(DATA_FILE)) {
   fs.writeFileSync(DATA_FILE, JSON.stringify([]));
 }
 
-// Read shipments
+if (!fs.existsSync(USERS_FILE)) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify([]));
+}
+
+// ================= HELPERS =================
 function readData() {
   return JSON.parse(fs.readFileSync(DATA_FILE));
 }
 
-// Write shipments
 function writeData(data) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-// Generate tracking number
+function readUsers() {
+  return JSON.parse(fs.readFileSync(USERS_FILE));
+}
+
+function writeUsers(data) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2));
+}
+
 function generateTracking() {
   return 'TRK' + Math.floor(100000 + Math.random() * 900000);
 }
 
-// ✅ Create shipment
+// ================= SHIPMENT SYSTEM =================
+
+// ✅ CREATE SHIPMENT
 app.post('/create-shipment', (req, res) => {
   const data = readData();
 
@@ -40,9 +52,14 @@ app.post('/create-shipment', (req, res) => {
     trackingNumber: generateTracking(),
     sender: req.body.sender,
     receiver: req.body.receiver,
+    origin: req.body.origin,
+    destination: req.body.destination,
+    email: req.body.email,
+    weight: req.body.weight,
+    type: req.body.type,
     status: "Processing",
     location: "Warehouse",
-    date: new Date().toLocaleString()
+    date: new Date().toISOString()
   };
 
   data.push(newShipment);
@@ -54,7 +71,7 @@ app.post('/create-shipment', (req, res) => {
   });
 });
 
-// ✅ Track shipment
+// ✅ TRACK SHIPMENT
 app.get('/track/:trackingNumber', (req, res) => {
   const data = readData();
 
@@ -69,26 +86,40 @@ app.get('/track/:trackingNumber', (req, res) => {
   res.json(shipment);
 });
 
+// ✅ GET ALL SHIPMENTS (ADMIN DASHBOARD)
+app.get('/shipments', (req, res) => {
+  const data = readData();
+  res.json(data);
+});
+
+// ✅ UPDATE STATUS (NEW FEATURE)
+app.put('/update-status/:trackingNumber', (req, res) => {
+  const data = readData();
+
+  const shipment = data.find(
+    item => item.trackingNumber === req.params.trackingNumber
+  );
+
+  if (!shipment) {
+    return res.status(404).json({ message: "Tracking number not found" });
+  }
+
+  const { status, location } = req.body;
+
+  if (status) shipment.status = status;
+  if (location) shipment.location = location;
+
+  writeData(data);
+
+  res.json({
+    message: "Shipment updated successfully",
+    shipment
+  });
+});
+
 // ================= USER SYSTEM =================
 
-const USERS_FILE = 'users.json';
-
-// Ensure users file exists
-if (!fs.existsSync(USERS_FILE)) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify([]));
-}
-
-// Read users
-function readUsers() {
-  return JSON.parse(fs.readFileSync(USERS_FILE));
-}
-
-// Write users
-function writeUsers(data) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2));
-}
-
-// ✅ SIGNUP
+// SIGNUP
 app.post('/signup', (req, res) => {
   const users = readUsers();
   const { username, password } = req.body;
@@ -109,7 +140,7 @@ app.post('/signup', (req, res) => {
   res.json({ message: "Account created successfully" });
 });
 
-// ✅ LOGIN
+// LOGIN
 app.post('/login', (req, res) => {
   const users = readUsers();
   const { username, password } = req.body;
@@ -125,12 +156,12 @@ app.post('/login', (req, res) => {
   res.json({ message: "Login successful" });
 });
 
-// ✅ Home route
+// ================= HOME =================
 app.get('/', (req, res) => {
   res.send("Backend is running 🚀");
 });
 
-// Start server
+// ================= START SERVER =================
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
